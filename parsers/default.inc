@@ -6,7 +6,7 @@
  */
 
 // Often we need to fake a version for Composer.
-define("M2C_FAKE_VERSION", "7.x");
+define("M2C_FAKE_VERSION", "1.x-dev");
 
 /**
  * Parse a makefile into the internal format provided by make.
@@ -30,16 +30,38 @@ function m2c_parsers_default_internal($makefile) {
  * Parse internal make format into composer
  */
 function m2c_parsers_default_m2c($internal_make_info) {
+
   // Start composer file.
-  $composer = array(
-    'repositories' => array(
-    ),
+  $composer = array();
+
+  if (!empty(drush_get_option('name'))) {
+    $composer['name'] = drush_get_option('name');
+  }
+
+  if (!empty(drush_get_option('type'))) {
+    $composer['type'] = drush_get_option('type');
+  }
+
+  if (!empty(drush_get_option('version'))) {
+    $composer['version'] = drush_get_option('version');
+  }
+
+  $composer += array(
     'require' => array(
       'composer/installers' => '~1.0',
       "cweagans/composer-patches" => "~1.0",
     ),
     'minimum-stability' => 'dev',
     'prefer-stable' => TRUE,
+    'repositories' => array(
+      array(
+        "type" => "composer",
+        "url" => "https://packages.drupal.org/7",
+      ),
+    ),
+    'config' => array(
+      'secure-http' => true,
+    ),
   );
 
   foreach($internal_make_info as $supertype => $packages) {
@@ -72,20 +94,28 @@ function m2c_parsers_default_m2c($internal_make_info) {
           }
 
           // Assemble a composer package structure.
+          $version = isset($package['download']['branch']) ? str_replace("7.x-", "", $package['download']['branch']) . "-dev" : $version;
+          $version = isset($package['download']['revision']) ? $version . "#" . $package['download']['revision'] : $version;
+          $version = strpos($version, 'dev') !== false ? $version : preg_replace('/([0-9]*\.[0-9]*)(.*)/', '\1.0\2', $version);
           $composer_package = array(
             "name" => "drupal/$name",
             "type" => "drupal-" . $package['type'],
             // Version not always defined in original makefile; we can't use "core",
             // because Composer version numbers cannot end ".x".
-            "version" => '7.' . $version,
+            "version" => $version,
           );
 
           // Get dist/source based on download method.
           $composer_package += _m2c_map_download_to_composer_dist($package['download'], $package);
 
+          // Allow http if needed.
+          if (isset($composer_package['download']['url']) && strpos($composer_package['download']['url'], 'http://') !== false) {
+            $composer['config']['secure-http'] = false;
+          }
+
           if (drush_get_option('add-drupal-repositories') || !_m2c_repository_is_drupal($composer_package)) {
             // Put package in as a package repository.
-            $composer['repositories'][$name] = array(
+            $composer['repositories'][] = array(
               "type" => "package",
               "package" => $composer_package,
             );
@@ -122,13 +152,20 @@ function m2c_parsers_default_m2c($internal_make_info) {
       default:
         drush_log("Didn't deal with make section $supertype", "warning");
     }
+
     // Process patches for all types.
     foreach ($packages as $name => $package) {
       if (!empty($package['patch'])) {
+        var_dump($supertype);
+        $type = ($supertype == 'libraries') ? 'library' : 'drupal';
         foreach ($package['patch'] as $patch_name => $patch_url) {
           // Fix old http URLs
           $patch_url = preg_replace('~^http://www.drupal.org/~', 'https://www.drupal.org/', $patch_url);
-          $composer['extra']['patches']["drupal/$name"][$patch_name] = $patch_url;
+          $composer['extra']['patches']["$type/$name"][$patch_name] = $patch_url;
+          // Allow http if needed.
+          if (strpos($patch_url, 'http://') !== false) {
+            $composer['config']['secure-http'] = false;
+          }
         }
       }
     }
@@ -159,6 +196,7 @@ function _m2c_map_download_to_composer_dist($download, $package = NULL) {
   foreach(array("url", "download_link") as $key) {
     if (array_key_exists($key, $download)) {
       $url = $download[$key];
+      $extension = end(explode(".", $url));
     }
   }
 
@@ -184,9 +222,12 @@ function _m2c_map_download_to_composer_dist($download, $package = NULL) {
       // Try to autodetect from the URL.
       $type = NULL;
       foreach (array("tar.gz" => "tar", ".tgz" => "tar", ".gz" => "gzip", ".zip" => "zip") as $zip_suffix => $zip_type) {
-        if (strpos(strrev($url), strrev($zip_suffix)) === 0) {
+        if (substr($url, strlen($url) - strlen($zip_suffix) == $zip_suffix)) {
           $type = $zip_type;
           break;
+        }
+        elseif (in_array($extension, array('js', 'css', 'php', 'html', 'txt'))) {
+          $type = "file";
         }
       }
 
@@ -211,7 +252,7 @@ function _m2c_map_download_to_composer_dist($download, $package = NULL) {
       return array(
         "dist" => array(
           "url" => $url,
-          "type" => $type ? $type : "zip",
+          "type" => $extension == "zip" ? "zip" : $type,
         ),
       );
 
@@ -220,7 +261,7 @@ function _m2c_map_download_to_composer_dist($download, $package = NULL) {
       return array(
         "dist" => array(
           "url" => $url,
-          "type" => "file",
+          "type" => !isset($download['file_type']) ? "file" : $download['file_type'],
         ),
       );
 
