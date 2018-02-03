@@ -42,10 +42,13 @@ function m2c_parsers_default_m2c($internal_make_info) {
     $composer['type'] = drush_get_option('type');
   }
 
+<<<<<<< HEAD
   if (!empty(drush_get_option('version'))) {
     $composer['version'] = drush_get_option('version');
   }
 
+=======
+>>>>>>> 11967f7ec6a845a3a7d1c8e638f538cea2b0e6ee
   $composer += array(
     'require' => array(
       'composer/installers' => '~1.0',
@@ -161,7 +164,11 @@ function m2c_parsers_default_m2c($internal_make_info) {
         foreach ($package['patch'] as $patch_name => $patch_url) {
           // Fix old http URLs
           $patch_url = preg_replace('~^http://www.drupal.org/~', 'https://www.drupal.org/', $patch_url);
+<<<<<<< HEAD
           $composer['extra']['patches']["$type/$name"][$patch_name] = $patch_url;
+=======
+          $composer['extra']['patches']["drupal/$name"][$patch_name] = $patch_url;
+>>>>>>> 11967f7ec6a845a3a7d1c8e638f538cea2b0e6ee
           // Allow http if needed.
           if (strpos($patch_url, 'http://') !== false) {
             $composer['config']['secure-http'] = false;
@@ -226,7 +233,11 @@ function _m2c_map_download_to_composer_dist($download, $package = NULL) {
           $type = $zip_type;
           break;
         }
+<<<<<<< HEAD
         elseif (in_array($extension, array('js', 'css', 'php', 'html', 'txt'))) {
+=======
+        else {
+>>>>>>> 11967f7ec6a845a3a7d1c8e638f538cea2b0e6ee
           $type = "file";
         }
       }

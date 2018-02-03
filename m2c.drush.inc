@@ -71,9 +71,6 @@ function drush_m2c_validate($makefile = NULL, $composerfile = NULL) {
     if (isset($composer_original['type']) && empty(drush_get_option('type'))) {
       drush_set_option('type', $composer_original['type']);
     }
-    if (isset($composer_original['version']) && empty(drush_get_option('version'))) {
-      drush_set_option('version', $composer_original['version']);
-    }
   }
 }
 
