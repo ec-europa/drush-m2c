@@ -30,8 +30,6 @@ function m2c_drush_command() {
       'composerfile' => 'Location of a composer.json to save output into.',
     ),
     'options' => array(
-      'name' => 'The package name (vendor/name).',
-      'type' => 'The package type (drupal-profile).',
       'add-drupal-repositories' => 'Add drupal project repositories (defaults to FALSE)',
       'custom' => 'Provide path(s) where custom module, libraries and/or themes can be found. Multiple paths should be comma separated.',
       'require-dev' => 'Changes require into require-dev and places provide section (defaults to FALSE)',
@@ -49,7 +47,7 @@ function m2c_drush_command() {
  *
  * Check makefile location provided, and that it exists.
  */
-function drush_m2c_validate($makefile = NULL, $composerfile = NULL) {
+function drush_m2c_validate($makefile = NULL) {
   if (!$makefile) {
     drush_set_error("DRUSH_M2C_NO_MAKEFILE", "You must specify a makefile.");
     return;
@@ -57,20 +55,6 @@ function drush_m2c_validate($makefile = NULL, $composerfile = NULL) {
   if (!file_exists($makefile)) {
     drush_set_error("DRUSH_M2C_NO_MAKEFILE", "Makefile does not exist: '$makefile'.");
     return;
-  }
-  if (file_exists($composerfile)) {
-    $composer_original = file_get_contents($composerfile);
-    $composer_original = json_decode($composer_original, true);
-    if (isset($composer_original['name']) || !empty(drush_get_option('name'))) {
-      drush_set_option('name', $composer_original['name']);
-    }
-    else {
-      drush_set_error("DRUSH_M2C_NO_PROJECT_NAME", "You must specify a project name.");
-      return;
-    }
-    if (isset($composer_original['type']) && empty(drush_get_option('type'))) {
-      drush_set_option('type', $composer_original['type']);
-    }
   }
 }
 
@@ -105,79 +89,6 @@ function drush_m2c($makefile, $composerfile = NULL) {
     // Replace tabs with spaces.
     $json = preg_replace("~\\t~", ' ', $json);
     print $json;
-  }
-  else {
-    if (isset($composer['repositories']) || isset($composer['extra']['patches'])) {
-      $location = str_replace(".json", "", $composerfile);
-      drush_mkdir($location);
-      // Add merge plugin.
-      $composer['require'] = array('wikimedia/composer-merge-plugin' => 'dev-master') + $composer['require'];
-      // Add merge plugin section.
-      $composer['extra']['merge-plugin']['require'][] = "composer/*.json";
-
-      // Split off repositories and add to merge array.
-      if (count($composer['repositories']) > 1) {
-        $repos = array(
-          'repositories' => $composer['repositories']
-        );
-
-        unset($composer['repositories']);
-        $composer['repositories'][] = array_shift($repos['repositories']);
-
-        $repos = json_encode($repos, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-        // Replace tabs with spaces.
-        $repos = preg_replace("~\\t~", ' ', $repos);
-        file_put_contents(rtrim($location, "/") . "/repositories.json", $repos);
-      }
-
-      if (count($composer['require']) > 3) {
-
-        $require = array(
-          $require_string => array_slice($composer['require'], 3, NULL, true),
-        );
-
-        // Copy all except core to provide section right after require section.
-        if ($require_string == "require-dev") {
-          if (isset($require['require-dev']['drupal/drupal'])) {
-            $core = $require['require-dev']['drupal/drupal'];
-            unset($require['require-dev']['drupal/drupal']);
-          }
-          $position = array_search('require', array_keys($composer)) + 1;
-          $composer = array_slice($composer, 0, $position, true) + array("provide" => $require['require-dev']) + array_slice($composer, $position, count($composer) - $position, true);
-          $composer['require'] = array_slice($composer['require'], 0, 3, true);
-          if (isset($core)) {
-            $composer['require']['drupal/drupal'] = $core;
-          }
-        }
-
-        $require = json_encode($require, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-        // Replace tabs with spaces.
-        $require = preg_replace("~\\t~", ' ', $require);
-        file_put_contents(rtrim($location, "/") . "/" . $require_string . ".json", $require);
-      }
-
-      // Split off repositories and add to merge array.
-      if (isset($composer['extra']['patches'])) {
-        $composer['extra']['merge-plugin']['merge-extra'] = true;
-
-        $patches = array(
-          'extra' => array(
-            'patches' => $composer['extra']['patches'],
-          ),
-        );
-        $patches = json_encode($patches, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-        $repos = preg_replace("~\\t~", ' ', $repos);
-        file_put_contents(rtrim($location, "/") . "/patches.json", $patches);
-
-        unset($composer['extra']['patches']);
-      }
-
-      // Print remaining to main composer.json.
-      $json = json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-      // Replace tabs with spaces.
-      $json = preg_replace("~\\t~", ' ', $json);
-      file_put_contents($composerfile, $json);
-    }
   }
 }
 

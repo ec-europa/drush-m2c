@@ -30,34 +30,10 @@ function m2c_parsers_default_internal($makefile) {
  * Parse internal make format into composer
  */
 function m2c_parsers_default_m2c($internal_make_info) {
-
   // Start composer file.
-  $composer = array();
-
-  if (!empty(drush_get_option('name'))) {
-    $composer['name'] = drush_get_option('name');
-  }
-
-  if (!empty(drush_get_option('type'))) {
-    $composer['type'] = drush_get_option('type');
-  }
-
-  $composer += array(
-    'require' => array(
-      'composer/installers' => '~1.0',
-      "cweagans/composer-patches" => "~1.0",
-    ),
-    'minimum-stability' => 'dev',
-    'prefer-stable' => TRUE,
-    'repositories' => array(
-      array(
-        "type" => "composer",
-        "url" => "https://packages.drupal.org/7",
-      ),
-    ),
-    'config' => array(
-      'secure-http' => true,
-    ),
+  $composer = array(
+    'repositories' => array(),
+    'require' => array(),
   );
 
   foreach($internal_make_info as $supertype => $packages) {
@@ -93,8 +69,9 @@ function m2c_parsers_default_m2c($internal_make_info) {
           $version = isset($package['download']['branch']) ? str_replace("7.x-", "", $package['download']['branch']) . "-dev" : $version;
           $version = isset($package['download']['revision']) ? $version . "#" . $package['download']['revision'] : $version;
           $version = strpos($version, 'dev') !== false ? $version : preg_replace('/([0-9]*\.[0-9]*)(.*)/', '\1.0\2', $version);
+          $package_name = $package['type'] != 'core' ? $package['type'] . "/" . $name : 'drupal/' . $name;
           $composer_package = array(
-            "name" => "drupal/$name",
+            "name" => $package_name,
             "type" => "drupal-" . $package['type'],
             // Version not always defined in original makefile; we can't use "core",
             // because Composer version numbers cannot end ".x".
@@ -110,8 +87,9 @@ function m2c_parsers_default_m2c($internal_make_info) {
           }
 
           if (drush_get_option('add-drupal-repositories') || !_m2c_repository_is_drupal($composer_package)) {
+            $package_index = $package['type'] . 's/' . $name;
             // Put package in as a package repository.
-            $composer['repositories'][] = array(
+            $composer['repositories'][$package_index] = array(
               "type" => "package",
               "package" => $composer_package,
             );
@@ -162,8 +140,18 @@ function m2c_parsers_default_m2c($internal_make_info) {
         }
       }
     }
+    if (!empty($composer['extra']['patches'])) {
+      $composer['require']['cweagans/composer-patches'] = "^1.0";
+    }
   }
-
+  if (!empty($composer['require'])) {
+    $composer['repositories'] = array_merge(array(
+      "packages/drupal7" => array(
+        "type" => "composer",
+        "url" => "https://packages.drupal.org/7",
+      ),
+    ), $composer['repositories']);
+  }
   return $composer;
 }
 
