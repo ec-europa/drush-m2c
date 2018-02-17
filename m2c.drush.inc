@@ -30,8 +30,6 @@ function m2c_drush_command() {
       'composerfile' => 'Location of a composer.json to save output into.',
     ),
     'options' => array(
-      'name' => 'The package name (vendor/name).',
-      'type' => 'The package type (drupal-profile).',
       'add-drupal-repositories' => 'Add drupal project repositories (defaults to FALSE)',
       'custom' => 'Provide path(s) where custom module, libraries and/or themes can be found. Multiple paths should be comma separated.',
       'require-dev' => 'Changes require into require-dev and places provide section (defaults to FALSE)',
@@ -58,20 +56,6 @@ function drush_m2c_validate($makefile = NULL, $composerfile = NULL) {
     drush_set_error("DRUSH_M2C_NO_MAKEFILE", "Makefile does not exist: '$makefile'.");
     return;
   }
-  if (file_exists($composerfile)) {
-    $composer_original = file_get_contents($composerfile);
-    $composer_original = json_decode($composer_original, true);
-    if (isset($composer_original['name']) || !empty(drush_get_option('name'))) {
-      drush_set_option('name', $composer_original['name']);
-    }
-    else {
-      drush_set_error("DRUSH_M2C_NO_PROJECT_NAME", "You must specify a project name.");
-      return;
-    }
-    if (isset($composer_original['type']) && empty(drush_get_option('type'))) {
-      drush_set_option('type', $composer_original['type']);
-    }
-  }
 }
 
 /**
@@ -83,12 +67,6 @@ function drush_m2c($makefile, $composerfile = NULL) {
   $composer = m2c_parsers_default_m2c(
     m2c_parsers_default_internal($makefile)
   );
-
-  $composer_original = file_get_contents($composerfile);
-  $composer_original = json_decode($composer_original, true);
-  if (isset($composer_original['extra']['installer-paths'])) {
-    $composer['extra']['installer-paths'] = $composer_original['extra']['installer-paths'];
-  }
 
   // Allow for development json file.
   $require_string = "require";
@@ -106,13 +84,7 @@ function drush_m2c($makefile, $composerfile = NULL) {
     }
   }
 
-  if (!isset($composerfile)) {
-    $json = json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-    // Replace tabs with spaces.
-    $json = preg_replace("~\\t~", ' ', $json);
-    print $json;
-  }
-  else {
+  if (isset($composerfile)) {
     if (isset($composer['repositories']) || isset($composer['extra']['patches'])) {
       $location = str_replace(".json", "", $composerfile);
       drush_mkdir($location);
@@ -184,6 +156,12 @@ function drush_m2c($makefile, $composerfile = NULL) {
       $json = preg_replace("~\\t~", ' ', $json);
       file_put_contents($composerfile, $json);
     }
+  }
+  else {
+    $json = json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+    // Replace tabs with spaces.
+    $json = preg_replace("~\\t~", ' ', $json);
+    print $json;
   }
 }
 
