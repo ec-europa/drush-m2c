@@ -126,7 +126,6 @@ function m2c_parsers_default_m2c($internal_make_info) {
     // Process patches for all types.
     foreach ($packages as $name => $package) {
       if (!empty($package['patch'])) {
-        var_dump($supertype);
         $type = ($supertype == 'libraries') ? 'library' : 'drupal';
         foreach ($package['patch'] as $patch_name => $patch_url) {
           // Fix old http URLs
